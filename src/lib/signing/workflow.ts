@@ -26,6 +26,7 @@ export async function existingEvidence(id:string,records:Record<string,any>[]){
   signatoryId:record.signatory_id,
   signature:await readPrivateObject(id,record.signature_key,record.signature_sha256,160000),
   initials:record.initials_key?await readPrivateObject(id,record.initials_key,record.initials_sha256,160000):null,
+  signingDetails:record.signing_details,
   signedAt:new Date(record.signed_at).toISOString(),locationText:record.location_text,
   locationConsent:record.location_consent,ipAddress:record.ip_address,signatureHash:record.signature_sha256,
  })));

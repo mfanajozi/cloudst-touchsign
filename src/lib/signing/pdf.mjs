@@ -1,4 +1,5 @@
 import {PDFDocument,PDFName,PDFSignature,StandardFonts,rgb} from 'pdf-lib';
+import {signingMonths} from './details.mjs';
 import {MAX_PDF_BYTES,pdfRectangle,SigningInputError} from './validation.mjs';
 export async function inspectPdf(bytes){
  if(bytes.length>MAX_PDF_BYTES)throw new SigningInputError('PDF must be no larger than 4 MB.');
@@ -30,11 +31,17 @@ export async function renderAgreementPdf({original,fields,evidence,certificate=n
    const page=pages[field.page_number-1];if(!page)throw new SigningInputError('Mapped page is missing.');
    const box=pdfRectangle(field,page.getWidth(),page.getHeight());
    if(field.type==='DATE')page.drawText(new Date(record.signedAt).toISOString().slice(0,10),{x:box.x,y:box.y+Math.max(0,(box.height-9)/2),size:9,font});
-   else{
+   else if(['DAY','MONTH','PLACE'].includes(field.type)){
+    const details=record.signingDetails;if(!details)throw new SigningInputError('Signing day, month and place are missing.');
+    const value=printable(field.type==='DAY'?String(details.day).padStart(2,'0'):field.type==='MONTH'?signingMonths[details.month-1]:details.place);
+    const size=Math.min(10,box.height*.7,box.width/Math.max(1,font.widthOfTextAtSize(value,1)));
+    if(size<6)throw new SigningInputError('Make the place field wider so the entered place is readable.');
+    page.drawText(value,{x:box.x,y:box.y+Math.max(0,(box.height-size)/2),size,font});
+   }else{
     const image=field.type==='INITIAL'?initials:signature;if(!image)throw new SigningInputError('Required initials are missing.');
     const size=image.scaleToFit(box.width,box.height);page.drawImage(image,{x:box.x+(box.width-size.width)/2,y:box.y+(box.height-size.height)/2,width:size.width,height:size.height});
     if(field.type==='SIGNATURE'){
-     const label=`Signed at ${record.locationText} on ${new Date(record.signedAt).toISOString().replace('T',' ').slice(0,19)} UTC`;
+     const label=record.signingDetails||record.locationText==='Place not provided'?`Submitted ${new Date(record.signedAt).toISOString().replace('T',' ').slice(0,19)} UTC`:`Signed at ${record.locationText} on ${new Date(record.signedAt).toISOString().replace('T',' ').slice(0,19)} UTC`;
      const lines=wrapped(label,font,9,box.width);if(lines.length>3)throw new SigningInputError('Make the signature field wider to fit its date and location.');
      lines.forEach((line,i)=>page.drawText(line,{x:box.x,y:box.y-11-i*11,size:9,font,color:rgb(.25,.25,.25)}));
     }
@@ -48,7 +55,7 @@ export async function renderAgreementPdf({original,fields,evidence,certificate=n
   const text=(value,{size=9,heading=false}={})=>{for(const line of wrapped(value,heading?bold:font,size,515)){if(y<62)next();page.drawText(line,{x:40,y,size,font:heading?bold:font});y-=size+5;}};
   next();text(certificate.title,{size:12,heading:true});text(`Finalized: ${certificate.finalizedAt} | Revision: ${certificate.revision}`);text(`Reason: ${certificate.reason}`);text(`Original SHA-256: ${certificate.originalHash}`);text('This record documents the platform signing workflow. The canonical completed file is frozen in TouchSign; downloaded copies may be edited outside the platform.');y-=12;
   text('PARTICIPANTS',{heading:true});
-  for(const signer of certificate.signers){const record=evidence.find(r=>r.signatoryId===signer.id);text(`${signer.full_name} | ${signer.email} | ${record?'SIGNED':'NOT SIGNED'}`,{heading:true});if(record){text(`UTC: ${record.signedAt} | IP: ${record.ipAddress||'Unavailable'}`);text(`Location consent: ${record.locationConsent?'Provided':'Not provided'} | ${record.locationText}`);text(`Signature SHA-256: ${record.signatureHash}`);}y-=8;}
+  for(const signer of certificate.signers){const record=evidence.find(r=>r.signatoryId===signer.id);text(`${signer.full_name} | ${signer.email} | ${record?'SIGNED':'NOT SIGNED'}`,{heading:true});if(record){text(`UTC: ${record.signedAt} | IP: ${record.ipAddress||'Unavailable'}`);if(record.signingDetails){const d=record.signingDetails;text(`Declared signing date: ${String(d.day).padStart(2,'0')} ${signingMonths[d.month-1]} ${d.year} | Place: ${d.place}`);}else text(`Location consent: ${record.locationConsent?'Provided':'Not provided'} | ${record.locationText}`);text(`Signature SHA-256: ${record.signatureHash}`);}y-=8;}
   text('DOCUMENT AUDIT SNAPSHOT',{heading:true});text(`Events available at finalization snapshot ${certificate.finalizedAt}. Later views/downloads remain in the platform audit record.`);
   for(const event of certificate.audit)text(`${new Date(event.created_at).toISOString()} | ${event.actor_email||'System'} | ${event.action} | IP: ${event.ip_address||'Unavailable'}`);
  }

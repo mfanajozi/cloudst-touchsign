@@ -4,6 +4,7 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {PDFDocument,PDFName,PDFArray,PDFRawStream,decodePDFRawStream} from 'pdf-lib';
 import {fixturePdf,fixturePng,pngDataUrl} from './helpers/pdf-fixtures.mjs';
 import {validateFields,validateSigningLayout,pngBytes,locationEvidence,pdfRectangle} from '../src/lib/signing/validation.mjs';
+import {signingDetails,signingDefaults} from '../src/lib/signing/details.mjs';
 import {inspectPdf,renderAgreementPdf} from '../src/lib/signing/pdf.mjs';
 const field={id:'field-1',signatory_id:'s1',page_number:1,type:'SIGNATURE',x_coord:.1,y_coord:.32,width:.3,height:.06};
 const signers=[{id:'s1',auth_user_id:'a1',full_name:'Test Signer One',email:'one@example.test'},{id:'s2',auth_user_id:'a2',full_name:'Test Signer Two',email:'two@example.test'}];
@@ -40,4 +41,23 @@ test('certificate pagination retains every audit event and clearly marks unsigne
 test('completed PDFs flatten original interactive form controls before adding marks',async()=>{
  const source=await PDFDocument.load(original);const control=source.getForm().createTextField('qa-name');control.setText('Test form value');control.addToPage(source.getPage(0),{x:40,y:680,width:220,height:20});
  const bytes=await renderAgreementPdf({original:await source.save(),fields,evidence,certificate:{id:'qa',title:'Form flatten check',revision:1,finalizedAt:'2026-11-06T18:02:00Z',reason:'All signed',originalHash:'c'.repeat(64),signers,audit:[]}});assert.equal((await PDFDocument.load(bytes)).getForm().getFields().length,0);
+});
+
+test('declared signing date validates calendar dates and uses South African current year',()=>{
+ const now=new Date('2026-11-07T12:00:00Z');
+ assert.deepEqual(signingDetails({day:7,month:11,place:'  Pretoria  '},now),{day:7,month:11,year:2026,place:'Pretoria'});
+ for(const input of [{day:31,month:4,place:'Pretoria'},{day:29,month:2,place:'Pretoria'},{day:0,month:11,place:'Pretoria'},{day:7,month:13,place:'Pretoria'},{day:7,month:11,place:'x'},{day:7,month:11,place:'x'.repeat(41)}])assert.throws(()=>signingDetails(input,now));
+ assert.equal(signingDetails({day:29,month:2,place:'Cape Town'},new Date('2028-02-01T12:00:00Z')).day,29);
+ assert.equal(signingDefaults(new Date('2026-12-31T23:30:00Z')).year,2027);
+});
+test('mapped day, month and place print independently, with other signer evidence retained',async()=>{
+ const details=signingDetails({day:7,month:11,place:'Pretoria'},new Date('2026-11-07T12:00:00Z'));
+ const extra=['DAY','MONTH','PLACE'].map((type,i)=>({...field,id:'details-'+i,type,x_coord:.1+i*.28,y_coord:.65,width:.25,height:.03}));
+ validateFields([...fields,...extra],['s1','s2'],2);
+ const records=[{...evidence[0],signingDetails:details,locationText:details.place},evidence[1]];
+ const bytes=await renderAgreementPdf({original,fields:[...fields,...extra],evidence:records});
+ const text=textContent(await PDFDocument.load(bytes));
+ assert.match(text,/07/);assert.match(text,/November/);assert.match(text,/Pretoria/);assert.match(text,/Submitted/);assert.match(text,/-25.1234/);
+ await assert.rejects(renderAgreementPdf({original,fields:[...fields,...extra],evidence}),/place are missing/);
+ if(process.env.WRITE_PDF_QA==='1'){await mkdir('tmp/pdfs',{recursive:true});await writeFile('tmp/pdfs/qa-signing-details.pdf',bytes);}
 });

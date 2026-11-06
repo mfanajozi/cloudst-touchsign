@@ -5,9 +5,9 @@ export function validateFields(fields,signerIds,pageCount){
  if(!Array.isArray(fields)||fields.length>1000)throw new SigningInputError('Use at most 1,000 fields.');
  const known=new Set(signerIds);
  return fields.map((f,index)=>{
-  if(!f||!known.has(f.signatory_id)||!['SIGNATURE','INITIAL','DATE'].includes(f.type)||!Number.isInteger(f.page_number)||f.page_number<1||f.page_number>pageCount)throw new SigningInputError('A field has an invalid signer, type or page.');
+  if(!f||!known.has(f.signatory_id)||!['SIGNATURE','INITIAL','DATE','DAY','MONTH','PLACE'].includes(f.type)||!Number.isInteger(f.page_number)||f.page_number<1||f.page_number>pageCount)throw new SigningInputError('A field has an invalid signer, type or page.');
   for(const key of ['x_coord','y_coord','width','height'])if(typeof f[key]!=='number'||!Number.isFinite(f[key]))throw new SigningInputError('Field coordinates must be finite numbers.');
-  if(f.width<({SIGNATURE:0.24,INITIAL:0.07,DATE:0.16}[f.type])||f.height<0.015||f.x_coord<0.025||f.y_coord<0.025||f.x_coord+f.width>0.975||f.y_coord+f.height+captionHeight(f)>0.965)throw new SigningInputError('Keep fields and signature captions inside the page margins.');
+  if(f.width<({SIGNATURE:0.24,INITIAL:0.07,DATE:0.16,DAY:0.05,MONTH:0.12,PLACE:0.16}[f.type])||f.height<0.015||f.x_coord<0.025||f.y_coord<0.025||f.x_coord+f.width>0.975||f.y_coord+f.height+captionHeight(f)>0.965)throw new SigningInputError('Keep fields and signature captions inside the page margins.');
   for(let i=0;i<index;i++){
    const b=fields[i];if(b.page_number!==f.page_number)continue;
    if(f.x_coord<b.x_coord+b.width&&f.x_coord+f.width>b.x_coord&&f.y_coord<b.y_coord+b.height+captionHeight(b)&&f.y_coord+f.height+captionHeight(f)>b.y_coord)throw new SigningInputError('Fields overlap. Leave room below each signature for its date and location.');

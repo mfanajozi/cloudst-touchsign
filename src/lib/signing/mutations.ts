@@ -4,7 +4,8 @@ import {HttpError} from '@/lib/api';
 import type {WorkspaceUser} from '@/lib/auth/user';
 import {workflowState,originalPdf,existingEvidence,auditSnapshot} from './workflow';
 import {writePrivateObject,removeStagedObjects,sha256} from './store';
-import {validateSigningLayout,pngBytes,locationEvidence} from './validation.mjs';
+import {validateSigningLayout,pngBytes} from './validation.mjs';
+import {signingDetails} from './details.mjs';
 import {renderAgreementPdf} from './pdf.mjs';
 import {signingRequestContext} from './request-context';
 
@@ -17,9 +18,12 @@ export async function submitSignature(id:string,user:WorkspaceUser,body:Record<s
  const original=await originalPdf(state.document);validateSigningLayout(state.fields,state.signers,original.info.pageCount);
  const fields=state.fields.filter(f=>f.signatory_id===own.id);const signature=pngBytes(body.signature)!;const needsInitials=fields.some(f=>f.type==='INITIAL');
  const initials=needsInitials?pngBytes(body.initials):null;if(needsInitials&&body.applyInitials!==true)throw new HttpError(400,'Confirm applying your initials to every required page.');
- const location=locationEvidence(body.location);const signedAt=new Date().toISOString();const context=signingRequestContext(request);
+ const signedAt=new Date().toISOString();
+ const needsDetails=fields.some(f=>['DAY','MONTH','PLACE'].includes(f.type));
+ const details=needsDetails?signingDetails(body.signingDetails,new Date(signedAt)):null;
+ const location={text:details?.place||'Place not provided',consent:false};const context=signingRequestContext(request);
  const evidence=await existingEvidence(id,state.records);const signatureHash=sha256(signature);const initialsHash=initials?sha256(initials):null;
- evidence.push({signatoryId:own.id,signature,initials,signedAt,locationText:location.text,locationConsent:location.consent,ipAddress:context.ip,signatureHash});
+ evidence.push({signatoryId:own.id,signature,initials,signedAt,signingDetails:details,locationText:location.text,locationConsent:location.consent,ipAddress:context.ip,signatureHash});
  const final=state.signers.every(s=>s.id===own.id||s.has_signed);const audit=final?await auditSnapshot(id):[];
  if(final)audit.push({actor_email:user.email,action:'SIGN',ip_address:context.ip,created_at:signedAt},{actor_email:user.email,action:'LOCK',ip_address:context.ip,created_at:signedAt});
  const pdf=await renderAgreementPdf({original:original.bytes,fields:state.fields,evidence,certificate:final?{id,title:state.document.title,revision:state.document.revision+1,originalHash:original.hash,finalizedAt:signedAt,reason:'All assigned participants signed',signers:state.signers,audit}:null});
@@ -28,7 +32,7 @@ export async function submitSignature(id:string,user:WorkspaceUser,body:Record<s
   signatureKey=await writePrivateObject(id,`signatures/${own.id}/signature`,signature,'image/png');keys.push(signatureKey);
   const initialsKey=initials?await writePrivateObject(id,`signatures/${own.id}/initials`,initials,'image/png'):null;if(initialsKey)keys.push(initialsKey);
   const pdfKey=await writePrivateObject(id,`versions/${state.document.revision+1}`,pdf,'application/pdf');keys.push(pdfKey);
-  const record={signature_key:signatureKey,initials_key:initialsKey,signature_sha256:signatureHash,initials_sha256:initialsHash,location_text:location.text,location_consent:location.consent,signed_at:signedAt,ip_address:context.ip,user_agent:context.userAgent};
+  const record={signature_key:signatureKey,initials_key:initialsKey,signature_sha256:signatureHash,initials_sha256:initialsHash,signing_details:details,location_text:location.text,location_consent:location.consent,signed_at:signedAt,ip_address:context.ip,user_agent:context.userAgent};
   attemptedCommit=true;
   const rows=await getDatabase()`SELECT touchsign_commit_signature(${id},${user.authId},${body.revision as number},${JSON.stringify(record)}::jsonb,${pdfKey},${sha256(pdf)},${original.hash},${final}) AS result`;
   return rows[0].result;

@@ -97,3 +97,8 @@ id_ed25519*
 *.sqlite
 *.sqlite3
 *.db
+
+# Versioned signing field upgrade
+!/db/
+!/db/migrations/
+!/db/migrations/004_signing_details.sql

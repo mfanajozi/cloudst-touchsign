@@ -38,8 +38,16 @@ Deploy with the standard Next.js build and start commands, or import this reposi
 
 ## Signing workflow
 
-Upload an unencrypted A4 PDF up to 4 MB and 100 pages. Add up to ten signers, place their signature/initial/date fields, save, then publish. Publication freezes the fields and participant identities. Assigned users can sign using their own accounts, with optional location consent. Server-side PDF generation and revision checks prevent stale submissions from replacing newer versions.
+Upload an unencrypted A4 PDF up to 4 MB and 100 pages. Add up to ten signers, place their signature, initials, day, month and place fields, save, then publish. Publication freezes the fields and participant identities. Assigned users draw signatures and initials, choose a day (01–31) and month, and type their signing place. Day, Month and Place are independent mapped fields for the blanks in the agreement. No geolocation permission is requested. The selected date uses the current South African calendar year; the actual submission timestamp remains in the completion record. Server-side PDF generation and revision checks prevent stale submissions from replacing newer versions.
 
 The final signature automatically locks the agreement and appends a completion certificate. Owners and administrators may also explicitly finalise early; unsigned participants are identified on the certificate. The canonical completed file is hash-checked and immutable through the workspace. Downloaded PDFs are ordinary PDF files, without a cryptographic digital-signature certificate.
 
 Before production use, verify signing, consent denial, downloads and access isolation with disposable agreements and separate accounts on actual desktop and mobile devices. Local automated checks do not establish those live results.
+
+Existing deployments upgrading to mapped signing details must run the backward-compatible upgrade once before deploying the new application:
+
+```sh
+node --env-file=.env scripts/upgrade-signing-details.mjs
+```
+
+This upgrade extends the existing TouchSign schema; it does not bootstrap a new database. Optional database integration verification: `node --env-file=.env tests/signing-database.mjs` (all fixtures are rolled back). Published and locked field mappings remain frozen; add new fields while an agreement is Draft.
