@@ -40,11 +40,6 @@ export async function renderAgreementPdf({original,fields,evidence,certificate=n
    }else{
     const image=field.type==='INITIAL'?initials:signature;if(!image)throw new SigningInputError('Required initials are missing.');
     const size=image.scaleToFit(box.width,box.height);page.drawImage(image,{x:box.x+(box.width-size.width)/2,y:box.y+(box.height-size.height)/2,width:size.width,height:size.height});
-    if(field.type==='SIGNATURE'){
-     const label=record.signingDetails||record.locationText==='Place not provided'?`Submitted ${new Date(record.signedAt).toISOString().replace('T',' ').slice(0,19)} UTC`:`Signed at ${record.locationText} on ${new Date(record.signedAt).toISOString().replace('T',' ').slice(0,19)} UTC`;
-     const lines=wrapped(label,font,9,box.width);if(lines.length>3)throw new SigningInputError('Make the signature field wider to fit its date and location.');
-     lines.forEach((line,i)=>page.drawText(line,{x:box.x,y:box.y-11-i*11,size:9,font,color:rgb(.25,.25,.25)}));
-    }
    }
   }
  }
