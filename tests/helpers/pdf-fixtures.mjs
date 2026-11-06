@@ -1,0 +1,9 @@
+import {PDFDocument,StandardFonts} from 'pdf-lib';
+import {deflateSync} from 'node:zlib';
+export async function fixturePdf(count=2){const pdf=await PDFDocument.create();const font=await pdf.embedFont(StandardFonts.Helvetica);for(let i=0;i<count;i++){const page=pdf.addPage([595.28,841.89]);page.drawText('CLOUDST TOUCHSIGN - DISPOSABLE QA AGREEMENT',{x:40,y:790,size:14,font});page.drawText(`Page ${i+1}. Test data only. Review the signature placements below.`,{x:40,y:760,size:10,font});page.drawText('The undersigned confirm review of this fictional agreement.',{x:40,y:730,size:10,font});}return pdf.save();}
+function crc32(bytes){let crc=-1;for(const byte of bytes){crc^=byte;for(let bit=0;bit<8;bit++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}return (crc^-1)>>>0;}
+function chunk(name,data){const type=Buffer.from(name);const length=Buffer.alloc(4);length.writeUInt32BE(data.length);const crc=Buffer.alloc(4);crc.writeUInt32BE(crc32(Buffer.concat([type,data])));return Buffer.concat([length,type,data,crc]);}
+export function fixturePng(){const w=600,h=200;const raw=Buffer.alloc((w*4+1)*h);const points=[[35,140],[70,45],[58,145],[120,90],[88,155],[170,65],[155,140],[235,100],[280,135],[345,80],[410,145],[500,100],[550,110]];
+ for(let i=1;i<points.length;i++){const [x1,y1]=points[i-1], [x2,y2]=points[i];const length=Math.ceil(Math.hypot(x2-x1,y2-y1));for(let t=0;t<=length;t++){const x=Math.round(x1+(x2-x1)*t/length),y=Math.round(y1+(y2-y1)*t/length);for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){if(x+dx<0||x+dx>=w||y+dy<0||y+dy>=h)continue;const at=(y+dy)*(w*4+1)+1+(x+dx)*4;raw[at+3]=255;}}}
+ const header=Buffer.alloc(13);header.writeUInt32BE(w,0);header.writeUInt32BE(h,4);header[8]=8;header[9]=6;return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',deflateSync(raw)),chunk('IEND',Buffer.alloc(0))]);}
+export const pngDataUrl=()=>`data:image/png;base64,${fixturePng().toString('base64')}`;

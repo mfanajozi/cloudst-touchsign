@@ -1,0 +1,7 @@
+'use client';
+import {useState} from 'react';
+import {useRouter} from 'next/navigation';
+export default function FinalizeControl({id,revision}:{id:string;revision:number}){
+ const [confirmed,setConfirmed]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const router=useRouter();
+ return <section className="workspace-panel finalization-panel"><h2>Finalize early</h2><p className="field-hint">When all assigned people sign, the agreement locks automatically. You can also finalize it now; the completion record will identify anyone who has not signed.</p><label className="checkbox"><input type="checkbox" checked={confirmed} onChange={event=>setConfirmed(event.target.checked)} disabled={busy}/>I understand that finalizing permanently locks this agreement and prevents any further signatures or changes.</label><button className="outline-button" disabled={!confirmed||busy} onClick={async()=>{setBusy(true);setError('');try{const response=await fetch(`/api/documents/${id}/finalize`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision,confirm:true})});const result=await response.json();if(!response.ok)throw new Error(result.error);router.refresh();}catch(e){setError(e instanceof Error?e.message:'Finalization failed.');setBusy(false);}}}>{busy?'Finalizing…':'Finalize and lock'}</button><p className="form-error" role="alert">{error}</p></section>;
+}

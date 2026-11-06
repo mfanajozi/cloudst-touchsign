@@ -1,0 +1,45 @@
+{
+  "name": "cloudst-touchsign",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "services:check": "node scripts/check-services.mjs",
+    "auth:check": "node --env-file=.env scripts/check-auth.mjs",
+    "test:access": "node tests/access.test.mjs",
+    "storage:check": "node scripts/check-storage.mjs",
+    "storage:setup": "node scripts/check-storage.mjs --setup",
+    "test:storage": "node tests/storage.test.mjs",
+    "test:enrollment": "node tests/enrollment.test.mjs",
+    "test:signing": "node tests/signing.test.mjs",
+    "test": "npm run test:access && npm run test:storage && npm run test:enrollment && npm run test:signing"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1152.0",
+    "@aws-sdk/s3-request-presigner": "^3.1163.0",
+    "@neon/auth": "^0.8.2",
+    "@neondatabase/serverless": "1.2.0",
+    "dotenv": "^18.0.9",
+    "next": "16.4.3",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.5.438",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@neon/config": "^1.9.1",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10",
+    "postcss": "^8",
+    "tailwindcss": "3.4.19",
+    "typescript": "5.9.3"
+  }
+}
